@@ -65,6 +65,11 @@ namespace jktools
             return successful();
         }
 
+        T unwrap()
+        {
+            return this->value();
+        }
+
         /** Unwrap the result, if succeeded, return the actual result;
          * if not, process the error with the function passed in, and return the default value.
          * 
