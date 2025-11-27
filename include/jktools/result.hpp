@@ -104,6 +104,9 @@ namespace jktools
     private:
         Result() = default;
     };
+
+    template<typename... Ts>
+    struct ErrorMatcher : Ts... { using Ts::operator()...; };
 }
 
 #endif // JKTOOLS_RESULT_H_

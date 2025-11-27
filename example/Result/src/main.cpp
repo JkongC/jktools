@@ -33,16 +33,9 @@ jktools::Result<int, CalErr> Calculate(int denominator, int numerator)
 int main()
 {
     int result;
-    auto process_func = [](auto&& val) {
-        using ValType = std::remove_cvref_t<decltype(val)>;
-        if constexpr (std::is_same_v<ValType, DivideZero>)
-        {
-            std::println("Devided by zero: {} / {}", val.denominator, val.numerator);
-        }
-        else if constexpr (std::is_same_v<ValType, HasNegative>)
-        {
-            std::println("Has negative: {} / {}", val.denominator, val.numerator);
-        }
+    auto process_func = jktools::ErrorMatcher{
+        [](const DivideZero& d) { std::println("Divide zero: {} / {}", d.denominator, d.numerator); },
+        [](const HasNegative& n) { std::println("Has negative: {} / {}", n.denominator, n.numerator); }
     };
 
     auto print_result = [&](int index) {

@@ -83,4 +83,18 @@ if (result.successful())
 
 Note that `unwrap` can only be called when the `Result` has a valid value, or an exception may be thrown.
 
-You can read the source to check how this class works.
+Or better still, use the helper class `ErrorMatcher` to simplify the setup of the process function and avoid annoying type manipulations:
+
+```c++
+auto process_func = jktools::ErrorMatcher{
+	[](const ErrorA& a) { std::println("ErrorA"); },
+    [](const ErrorB& b) { std::println("ErrorB"); },
+    [](const auto& u) { std::println("Unknown error."); }
+};
+
+auto result = foo(1).unwrap_or(-1, process_func);
+```
+
+This method benefits from overload resolution.
+
+You can read the source to check how `Result` works.
