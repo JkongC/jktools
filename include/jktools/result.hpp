@@ -13,7 +13,7 @@ namespace jktools
         using VariantType = std::variant<Ts...>;
 
         template<typename SE>
-        Error(SE&& specific_error) : std::variant<Ts...>(std::forward<SE>(specific_error)) {}
+        explicit Error(SE&& specific_error) : std::variant<Ts...>(std::forward<SE>(specific_error)) {}
 
         decltype(auto) as_variant()
         {
@@ -51,13 +51,24 @@ namespace jktools
     struct Result : private std::expected<T, E>
     {
     public:
-        Result(T&& result) : std::expected<T, E>(std::forward<T>(result)) {}
-        Result(E&& error) : std::expected<T, E>(std::unexpected(std::forward<E>(error))) {}
+        Result() : std::expected<T, E>() {}
+        Result(const T& result) : std::expected<T, E>(result) {}
+        Result(T&& result) : std::expected<T, E>(std::move(result)) {}
+        Result(const E& error) : std::expected<T, E>(std::unexpected(error)) {}
+        Result(E&& error) : std::expected<T, E>(std::unexpected(std::move(error))) {}
 
     public:
+        using std::expected<T, E>::error;
+        using std::expected<T, E>::value;
+
         bool successful() const
         {
             return this->has_value();
+        }
+
+        bool failed() const
+        {
+            return !successful();
         }
 
         operator bool() const
@@ -65,44 +76,86 @@ namespace jktools
             return successful();
         }
 
-        T unwrap()
-        {
-            return this->value();
-        }
-
-        /** Unwrap the result, if succeeded, return the actual result;
-         * if not, process the error with the function passed in, and return the default value.
-         * 
-         * @param def_val The default value if unsuccessful.
+        /** If failed, using the the function passed in to process the error.
+         *
          * @param function The function used to process the error.
+         * 
+         * @return The result itself.
          */
         template<typename F>
-        T unwrap_or(T&& def_val, F&& function)
+        decltype(auto) if_failed(F&& function)
         {
             if (!successful())
-                this->error().process(function);
+                error().process(std::forward<F>(function));
 
-            return this->value_or(std::forward<T>(def_val));
+            return *this;
         }
 
         /** Unwrap the result, if succeeded, return the actual result;
-         * if not, process the error with the function passed in, and return the default value.
-         * The default value is return by the function.
-         *
+         * if not, return the default value passed in.
+         * 
          * @param def_val The default value if unsuccessful.
-         * @param function The function used to process the error.
          */
-        template <typename F>
-        T unwrap_or(F&& function)
+        T unwrap_or(const T& def_val)
         {
-            if (!successful())
-                return this->error().process(function);
-
-            return this->value();
+            return this->value_or(def_val);
         }
 
-    private:
-        Result() = default;
+        template<typename F>
+        T unwrap(F&& function)
+        {
+            if (successful())
+            {
+                return value();
+            }
+            else
+            {
+                return error().process(function);
+            }
+        }
+    };
+
+    template<typename T, ErrorType E>
+    requires std::is_void_v<T>
+    struct Result<T, E> : private std::expected<void, E>
+    {
+    public:
+        Result() : std::expected<void, E>() {}
+        Result(const E& error) : std::expected<void, E>(std::unexpected(error)) {}
+        Result(E &&error) : std::expected<void, E>(std::unexpected(std::move(error))) {}
+
+    public:
+        using std::expected<void, E>::error;
+
+        bool successful() const
+        {
+            return this->has_value();
+        }
+
+        bool failed() const
+        {
+            return !successful();
+        }
+
+        operator bool() const
+        {
+            return successful();
+        }
+
+        /** If failed, using the the function passed in to process the error.
+         *
+         * @param function The function used to process the error.
+         *
+         * @return The result itself.
+         */
+        template <typename F>
+        decltype(auto) if_failed(F &&function)
+        {
+            if (!successful())
+                error().process(std::forward<F>(function));
+
+            return *this;
+        }
     };
 
     template<typename... Ts>

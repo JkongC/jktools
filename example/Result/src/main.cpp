@@ -14,7 +14,12 @@ struct HasNegative
     int numerator;
 };
 
-struct CalErr : jktools::Error<DivideZero, HasNegative> {};
+struct CalErr : jktools::Error<DivideZero, HasNegative>
+{
+    using ErrType = jktools::Error<DivideZero, HasNegative>;
+
+    using ErrType::ErrType;
+};
 
 jktools::Result<int, CalErr> Calculate(int denominator, int numerator)
 {
@@ -43,10 +48,10 @@ int main()
             std::println("Result {}: {}", index, result);
     };
 
-    result = Calculate(3, 1).unwrap_or(-1, process_func);
+    result = Calculate(3, 1).if_failed(process_func).unwrap_or(-1);
     print_result(1);
-    result = Calculate(3, 0).unwrap_or(-1, process_func);
+    result = Calculate(3, 0).if_failed(process_func).unwrap_or(-1);
     print_result(2);
-    result = Calculate(-1, 3).unwrap_or(-1, process_func);
+    result = Calculate(-1, 3).if_failed(process_func).unwrap_or(-1);
     print_result(3);
 }
