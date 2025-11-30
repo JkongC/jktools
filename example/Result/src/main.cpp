@@ -55,6 +55,11 @@ int main()
     print_result(3);
 
     auto raw_result = jktools::Result<void, CalErr>(CalErr(DivideZero{ 1, 0 }));
+    // You can copy(or move) a Result.
     auto another_result = raw_result;
+
+    // In order to compare two Result, both T(except for void) and E need to be comparable.
+    // That further requires specific error types to be comparable.
+    // In this case, DivideZero and HasNegative
     std::println("Copy correct: {}", raw_result == another_result);
 }
