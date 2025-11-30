@@ -3,43 +3,46 @@
 
 #include <variant>
 #include <expected>
+#include <type_traits>
 
 namespace jktools
 {
     template<typename... Ts>
-    struct Error : public std::variant<Ts...>
+    struct Error
     {
         using __JKTOOLS_ERRORTYPE_FLAG = int;
-        using VariantType = std::variant<Ts...>;
 
-        template<typename SE>
-        explicit Error(SE&& specific_error) : std::variant<Ts...>(std::forward<SE>(specific_error)) {}
+        template <typename SE>
+        explicit Error(SE&& specific_error) : m_Variant(std::forward<SE>(specific_error)) {}
 
-        decltype(auto) as_variant()
+        Error(const Error& other) : m_Variant(other.m_Variant) {}
+        
+        Error(Error&& other)
+            noexcept((std::is_nothrow_move_constructible_v<Ts> && ...))
+            : m_Variant(std::move(other.m_Variant))
+        {}
+
+        Error& operator=(this Error& self, const Error& other)
         {
-            using RetType = decltype(*this);
-            if constexpr (std::is_lvalue_reference_v<RetType>)
-            {
-                if constexpr (std::is_const_v<RetType>)
-                {
-                    return static_cast<const VariantType&>(*this);
-                }
-                else
-                {
-                    return static_cast<VariantType&>(*this);
-                }
-            }
-            else
-            {
-                return static_cast<VariantType&&>(*this);
-            }
+            m_Variant = other.m_Variant;
+            return self;
+        }
+
+        template<typename... Ts>
+        requires (std::equality_comparable<Ts> && ...)
+        friend bool operator==(const Error<Ts...>& lhs, const Error<Ts...>& rhs)
+        {
+            return lhs.m_Variant == rhs.m_Variant;
         }
 
         template<typename F>
         decltype(auto) process(F&& function)
         {
-            return std::visit(std::forward<F>(function), this->as_variant());
+            return std::visit(std::forward<F>(function), m_Variant);
         }
+
+    private:
+        std::variant<Ts...> m_Variant;
     };
 
     template<typename T>
@@ -48,22 +51,40 @@ namespace jktools
     };
 
     template<typename T, ErrorType E>
-    struct Result : private std::expected<T, E>
+    struct Result
     {
-    public:
-        Result() : std::expected<T, E>() {}
-        Result(const T& result) : std::expected<T, E>(result) {}
-        Result(T&& result) : std::expected<T, E>(std::move(result)) {}
-        Result(const E& error) : std::expected<T, E>(std::unexpected(error)) {}
-        Result(E&& error) : std::expected<T, E>(std::unexpected(std::move(error))) {}
+        Result() = default;
+        Result(const T& result) : m_Exp(result) {}
+        Result(T&& result) : m_Exp(std::move(result)) {}
+        Result(const E& error) : m_Exp(std::unexpected(error)) {}
+        Result(E&& error) : m_Exp(std::unexpected(std::move(error))) {}
 
-    public:
-        using std::expected<T, E>::error;
-        using std::expected<T, E>::value;
+        Result(const Result& other) : m_Exp(other.m_Exp) {}
+        Result(Result&& other) : m_Exp(std::move(other.m_Exp)) {}
+
+        Result& operator=(this Result& self, const Result& other)
+        {
+            m_Exp = other.m_Exp;
+            return self;
+        }
+
+        Result &operator=(this Result &self, Result&& other)
+        {
+            m_Exp = std::move(other.m_Exp);
+            return self;
+        }
+
+        // Result's operator== requires both T(unless T is void) and E is comparable.
+        template <typename _T, typename _E>
+        requires std::equality_comparable<_E> && (std::is_void_v<_T> || std::equality_comparable<_T>)
+        friend inline bool operator==(const Result<_T, _E> &lhs, const Result<_T, _E> &rhs)
+        {
+            return lhs.m_Exp == rhs.m_Exp;
+        }
 
         bool successful() const
         {
-            return this->has_value();
+            return m_Exp.has_value();
         }
 
         bool failed() const
@@ -86,7 +107,7 @@ namespace jktools
         decltype(auto) if_failed(F&& function)
         {
             if (!successful())
-                error().process(std::forward<F>(function));
+                m_Exp.error().process(std::forward<F>(function));
 
             return *this;
         }
@@ -98,7 +119,7 @@ namespace jktools
          */
         T unwrap_or(const T& def_val)
         {
-            return this->value_or(def_val);
+            return m_Exp.value_or(def_val);
         }
 
         template<typename F>
@@ -106,30 +127,44 @@ namespace jktools
         {
             if (successful())
             {
-                return value();
+                return m_Exp.value();
             }
             else
             {
-                return error().process(function);
+                return m_Exp.error().process(function);
             }
         }
+
+    private:
+        std::expected<T, E> m_Exp;
     };
 
     template<typename T, ErrorType E>
     requires std::is_void_v<T>
-    struct Result<T, E> : private std::expected<void, E>
+    struct Result<T, E>
     {
-    public:
-        Result() : std::expected<void, E>() {}
-        Result(const E& error) : std::expected<void, E>(std::unexpected(error)) {}
-        Result(E &&error) : std::expected<void, E>(std::unexpected(std::move(error))) {}
+        Result() = default;
+        Result(const E& error) : m_Exp(std::unexpected(error)) {}
+        Result(E&& error) : m_Exp(std::unexpected(std::move(error))) {}
 
-    public:
-        using std::expected<void, E>::error;
+        Result(const Result &other) : m_Exp(other.m_Exp) {}
+        Result(Result &&other) : m_Exp(std::move(other.m_Exp)) {}
+
+        Result& operator=(this Result& self, const Result& other)
+        {
+            m_Exp = other.m_Exp;
+            return self;
+        }
+
+        Result& operator=(this Result& self, Result&& other)
+        {
+            m_Exp = std::move(other.m_Exp);
+            return self;
+        }
 
         bool successful() const
         {
-            return this->has_value();
+            return m_Exp.has_value();
         }
 
         bool failed() const
@@ -142,20 +177,28 @@ namespace jktools
             return successful();
         }
 
+        // Result's operator== requires both T(unless T is void) and E is comparable.
+        template <typename _T, typename _E>
+        requires std::equality_comparable<_E> && (std::is_void_v<_T> || std::equality_comparable<_T>)
+        friend bool operator==(const Result<_T, _E> &lhs, const Result<_T, _E> &rhs);
+
         /** If failed, using the the function passed in to process the error.
-         *
-         * @param function The function used to process the error.
-         *
-         * @return The result itself.
-         */
+        *
+        * @param function The function used to process the error.
+        *
+        * @return The result itself.
+        */
         template <typename F>
         decltype(auto) if_failed(F &&function)
         {
             if (!successful())
-                error().process(std::forward<F>(function));
+                m_Exp.error().process(std::forward<F>(function));
 
             return *this;
         }
+
+    private:
+        std::expected<void, E> m_Exp;
     };
 
     template<typename... Ts>

@@ -6,20 +6,19 @@ struct DivideZero
 {
     int denominator;
     int numerator;
+
+    bool operator==(const DivideZero&) const = default;
 };
 
 struct HasNegative
 {
     int denominator;
     int numerator;
+
+    bool operator==(const HasNegative&) const = default;
 };
 
-struct CalErr : jktools::Error<DivideZero, HasNegative>
-{
-    using ErrType = jktools::Error<DivideZero, HasNegative>;
-
-    using ErrType::ErrType;
-};
+using CalErr = jktools::Error<DivideZero, HasNegative>;
 
 jktools::Result<int, CalErr> Calculate(int denominator, int numerator)
 {
@@ -54,4 +53,8 @@ int main()
     print_result(2);
     result = Calculate(-1, 3).if_failed(process_func).unwrap_or(-1);
     print_result(3);
+
+    auto raw_result = jktools::Result<void, CalErr>(CalErr(DivideZero{ 1, 0 }));
+    auto another_result = raw_result;
+    std::println("Copy correct: {}", raw_result == another_result);
 }

@@ -1,6 +1,6 @@
 # jktools
 
-A set(not for now?) of header-only cpp tools that may be of some help.
+A set(not for now?) of header-only C++ tools that may be of some help.
 
 ---
 
@@ -8,7 +8,7 @@ A set(not for now?) of header-only cpp tools that may be of some help.
 
 A class that can be used to return a result of a function call, similar to `Result<T, E>` in Rust. It allows convenient error processing without using exception.
 
-**It requires C++23 and above since it uses `std::expected` as its base class.**
+**It requires C++23 and above since it uses `std::expected`.**
 
 Its equivalent declaration is like:
 
@@ -139,12 +139,15 @@ auto process_func = [](ErrorInfo info) -> std::string {
 	switch (info)
     {
         case fail:
+            std::println("Failed!");
             return -10;
             break;
         case warning:
+            std::println("Warning!");
             return -20;
             break;
         case reject:
+            std::println("Rejected!");
             return -30;
             break;
         default:
